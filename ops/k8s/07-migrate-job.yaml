@@ -1,0 +1,20 @@
+# Run explicitly before rolling out 04-api.yaml when you want migrations
+# applied exactly once instead of racing across api replicas' entrypoint.sh.
+# kubectl apply -f 07-migrate-job.yaml && kubectl wait --for=condition=complete job/migrate -n contextforge
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: contextforge
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: contextforge-api:latest
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: api-config

@@ -1,0 +1,11 @@
+# DATABASE_URL below embeds the demo password from 01-postgres-secret.yaml.
+# Real environments: put DATABASE_URL in a Secret instead, sourced from a
+# secrets manager, not a ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: contextforge
+data:
+  ENV: "production"
+  DATABASE_URL: "postgresql+asyncpg://contextforge:contextforge@postgres:5432/contextforge"
