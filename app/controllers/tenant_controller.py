@@ -20,9 +20,9 @@ async def create_tenant(
     db.add(tenant)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
-        raise conflict("slug already exists")
+        raise conflict("slug already exists") from exc
     await db.refresh(tenant)
     return SuccessResponse(code=201, message="tenant created successfully", data=tenant)
 
@@ -34,14 +34,10 @@ async def list_tenants(
     result = await db.execute(
         select(Tenant).order_by(Tenant.created_at).offset(params.offset).limit(params.page_size)
     )
-    return PaginatedResponse(
-        data=list(result.scalars().all()), meta=build_meta(params, total_items or 0)
-    )
+    return PaginatedResponse(data=list(result.scalars().all()), meta=build_meta(params, total_items or 0))
 
 
-async def get_tenant(
-    tenant_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> SuccessResponse[TenantRead]:
+async def get_tenant(tenant_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> SuccessResponse[TenantRead]:
     tenant = await db.get(Tenant, tenant_id)
     if tenant is None:
         raise not_found("tenant not found")

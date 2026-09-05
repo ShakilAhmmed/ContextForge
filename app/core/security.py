@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
@@ -17,7 +17,7 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 def create_access_token(user_id: uuid.UUID, tenant_id: uuid.UUID) -> tuple[str, int]:
     expires_in = settings.jwt_expire_minutes * 60
-    expire = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    expire = datetime.now(UTC) + timedelta(seconds=expires_in)
     payload = {"sub": str(user_id), "tenant_id": str(tenant_id), "exp": expire}
     token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
     return token, expires_in

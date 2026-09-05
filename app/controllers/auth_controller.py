@@ -13,9 +13,7 @@ from app.schemas.auth import LoginRequest, RegisterRequest, TokenData, UserRead
 from app.schemas.common import SuccessResponse
 
 
-async def register(
-    payload: RegisterRequest, db: AsyncSession = Depends(get_db)
-) -> SuccessResponse[UserRead]:
+async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> SuccessResponse[UserRead]:
     tenant = await db.get(Tenant, payload.tenant_id)
     if tenant is None:
         raise conflict("tenant does not exist")
@@ -28,16 +26,14 @@ async def register(
     db.add(user)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
-        raise conflict("email already registered")
+        raise conflict("email already registered") from exc
     await db.refresh(user)
     return SuccessResponse(code=201, message="user registered successfully", data=user)
 
 
-async def login(
-    payload: LoginRequest, db: AsyncSession = Depends(get_db)
-) -> SuccessResponse[TokenData]:
+async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> SuccessResponse[TokenData]:
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(payload.password, user.hashed_password):

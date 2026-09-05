@@ -22,10 +22,10 @@ async def get_current_user(
 
     try:
         payload = decode_access_token(credentials.credentials)
-    except jwt.ExpiredSignatureError:
-        raise unauthorized("token expired")
-    except jwt.InvalidTokenError:
-        raise unauthorized("invalid token")
+    except jwt.ExpiredSignatureError as exc:
+        raise unauthorized("token expired") from exc
+    except jwt.InvalidTokenError as exc:
+        raise unauthorized("invalid token") from exc
 
     user = await db.get(User, uuid.UUID(payload["sub"]))
     if user is None:

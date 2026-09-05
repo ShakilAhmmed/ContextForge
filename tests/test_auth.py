@@ -50,7 +50,9 @@ async def test_login_returns_access_token(client):
         json={"tenant_id": tenant_id, "email": "alice@example.com", "password": "hunter22"},
     )
 
-    resp = await client.post("/api/v1/auth/login", json={"email": "alice@example.com", "password": "hunter22"})
+    resp = await client.post(
+        "/api/v1/auth/login", json={"email": "alice@example.com", "password": "hunter22"}
+    )
 
     assert resp.status_code == 200
     body = resp.json()
@@ -74,7 +76,9 @@ async def test_login_wrong_password_returns_401(client):
 
 
 async def test_login_unknown_email_returns_401(client):
-    resp = await client.post("/api/v1/auth/login", json={"email": "nobody@example.com", "password": "hunter22"})
+    resp = await client.post(
+        "/api/v1/auth/login", json={"email": "nobody@example.com", "password": "hunter22"}
+    )
 
     assert resp.status_code == 401
 

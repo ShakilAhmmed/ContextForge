@@ -26,6 +26,8 @@ def page_params(
 def build_meta(params: PageParams, total_items: int) -> PaginationMeta:
     total_pages = ceil(total_items / params.page_size) if total_items else 0
     return PaginationMeta(
-        page=params.page, page_size=params.page_size,
-        total_items=total_items, total_pages=total_pages,
+        page=params.page,
+        page_size=params.page_size,
+        total_items=total_items,
+        total_pages=total_pages,
     )
