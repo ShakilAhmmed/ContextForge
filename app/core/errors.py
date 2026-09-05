@@ -30,6 +30,14 @@ def forbidden(message: str) -> ApiError:
     return ApiError(status.HTTP_403_FORBIDDEN, "forbidden", message)
 
 
+def bad_request(message: str) -> ApiError:
+    return ApiError(status.HTTP_400_BAD_REQUEST, "bad_request", message)
+
+
+def payload_too_large(message: str) -> ApiError:
+    return ApiError(status.HTTP_413_CONTENT_TOO_LARGE, "payload_too_large", message)
+
+
 def rate_limited(message: str, retry_after_seconds: int) -> ApiError:
     return ApiError(
         status.HTTP_429_TOO_MANY_REQUESTS,

@@ -23,6 +23,30 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.6.7
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf:ro
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9324"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ../..
@@ -32,12 +56,19 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://contextforge:contextforge@postgres:5432/contextforge
       REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      SQS_ENDPOINT_URL: http://elasticmq:9324
+      SQS_INGESTION_QUEUE_URL: http://elasticmq:9324/000000000000/document-ingestion
     expose:
       - "8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      elasticmq:
         condition: service_healthy
 
   nginx:
@@ -53,3 +84,4 @@ services:
 
 volumes:
   pgdata:
+  miniodata:

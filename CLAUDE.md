@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repo. See also [README.md](README.
 
 ## Stack
 
-FastAPI (async) + PostgreSQL (async SQLAlchemy 2.0 ORM) + Alembic migrations + Redis (rate limiting). nginx reverse-proxies with TLS in front of uvicorn. Python 3.12.
+FastAPI (async) + PostgreSQL (async SQLAlchemy 2.0 ORM) + Alembic migrations + Redis (rate limiting) + MinIO (S3-compatible document storage) + ElasticMQ (SQS-compatible ingestion queue). nginx reverse-proxies with TLS in front of uvicorn. Python 3.12.
 
 ## Architecture pattern — controller-as-handler
 
@@ -18,6 +18,8 @@ app/models/<resource>.py       — SQLAlchemy ORM model
 ```
 
 Controller functions themselves carry `Depends(get_db)` etc. and are registered directly as the route handler via `router.add_api_route(...)` — there is no separate thin wrapper function with the same name in the route file. See `app/api/routes/tenants.py` + `app/controllers/tenant_controller.py` as the reference pair.
+
+**When an operation has real business logic or touches multiple external systems** (storage + DB + queue, say), pull it into `app/services/<resource>_service.py` as a plain async function and have the controller just parse the request and call it. Simple CRUD (tenants, reads) stays directly in the controller — don't add a service module for a single DB query. See `app/services/document_service.py` (upload: validates, writes to object storage, commits the DB row, then enqueues an ingestion message — in that order, since a queue message pointing at an uncommitted row is worse than a committed row that never got enqueued) + `app/controllers/document_controller.py` as the reference pair.
 
 ## Response contracts — always use these, never return raw dicts/models
 
@@ -36,6 +38,10 @@ JWT bearer tokens (`app/core/security.py`, `PyJWT` + `bcrypt`). `app/api/deps.py
 ## Rate limiting
 
 `app/core/rate_limit.py:rate_limit(key_prefix, limit_attr, window_attr)` — a dependency factory backed by Redis (fixed-window counter). Pass **attribute names** (strings), not resolved values — the dependency reads `settings` at request time so limits stay tunable and patchable in tests. Global default is applied on the `/api/v1` router in `app/api/v1.py`; stricter per-route limits (e.g. `/auth/login`) are added via `dependencies=[Depends(rate_limit(...))]` on that specific `add_api_route` call.
+
+## Object storage & queue
+
+`app/core/storage.py` (`ObjectStorage` protocol, `S3ObjectStorage` impl) and `app/core/queue.py` (`QueueClient` protocol, `SQSQueueClient` impl) both follow the same shape: a `Protocol` interface + one real implementation using `aioboto3`, targeting MinIO/ElasticMQ in dev and real AWS S3/SQS in prod via `app/core/config.py` settings (endpoint URL + credentials only differ). Get them via `Depends(get_storage)` / `Depends(get_queue)`, never instantiate directly. `app/main.py`'s `lifespan` calls `storage.ensure_bucket()` on startup.
 
 ## API versioning
 
@@ -59,7 +65,7 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-`tests/conftest.py` provides a `client` fixture: in-memory SQLite (no Docker needed) with `get_db` overridden, and `fakeredis` with `get_redis` overridden. Tests hit the real FastAPI app via `httpx.AsyncClient` + `ASGITransport` — no mocking of controllers. Assert on the full response contract shape (`success`/`code`/`data`/`error.type`), not just status code. This is the pattern used throughout `tests/test_tenants.py`, `tests/test_auth.py`, `tests/test_rate_limit.py` — follow it for new tests.
+`tests/conftest.py` provides a `client` fixture: in-memory SQLite (no Docker needed) with `get_db` overridden, `fakeredis` with `get_redis` overridden, and `tests/fakes.py`'s `FakeObjectStorage`/`FakeQueueClient` with `get_storage`/`get_queue` overridden (exposed as `client.fake_storage`/`client.fake_queue` for assertions). Tests hit the real FastAPI app via `httpx.AsyncClient` + `ASGITransport` — no mocking of controllers. Assert on the full response contract shape (`success`/`code`/`data`/`error.type`), not just status code. This is the pattern used throughout `tests/test_tenants.py`, `tests/test_auth.py`, `tests/test_rate_limit.py`, `tests/test_documents.py` — follow it for new tests.
 
 CI runs this in `.github/workflows/test.yml`, separate from `lint.yml` (`ruff check` + `ruff format --check`) and `docker-build.yml` (builds the root `Dockerfile`) — three independent workflow files so any one can fail without blocking the others. Run `ruff format . && ruff check . --fix` locally before committing.
 

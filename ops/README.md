@@ -30,6 +30,8 @@ kubectl apply -f ops/k8s/00-namespace.yaml
 kubectl apply -f ops/k8s/01-postgres-secret.yaml
 kubectl apply -f ops/k8s/02-postgres.yaml
 kubectl apply -f ops/k8s/02b-redis.yaml
+kubectl apply -f ops/k8s/02c-minio.yaml
+kubectl apply -f ops/k8s/02d-elasticmq.yaml
 kubectl apply -f ops/k8s/03-api-configmap.yaml
 kubectl apply -f ops/k8s/03b-api-secret.yaml
 kubectl apply -f ops/k8s/07-migrate-job.yaml
@@ -39,6 +41,6 @@ kubectl apply -f ops/k8s/05-nginx-configmap.yaml
 kubectl apply -f ops/k8s/06-nginx.yaml
 ```
 
-- `01-postgres-secret.yaml`, `03-api-configmap.yaml`, and `03b-api-secret.yaml` ship demo credentials/JWT secret — replace with a real secrets manager before any shared/staging cluster.
+- `01-postgres-secret.yaml`, `02c-minio.yaml`'s `minio-secret`, `03-api-configmap.yaml`, and `03b-api-secret.yaml` ship demo credentials/JWT secret — replace with a real secrets manager before any shared/staging cluster. In production, `S3_ENDPOINT_URL`/`SQS_ENDPOINT_URL` point at real AWS S3/SQS instead of MinIO/ElasticMQ — same client code, just different endpoint + credentials.
 - `contextforge-api:latest` must point at an image built from the root `Dockerfile` and pushed to a registry your cluster can pull from.
 - `06-nginx.yaml` Service is `LoadBalancer` — swap for `ClusterIP` + Ingress if the cluster doesn't support LB provisioning.
