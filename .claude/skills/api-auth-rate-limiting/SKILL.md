@@ -11,8 +11,8 @@ description: Protect a FastAPI route with JWT bearer auth and/or Redis-backed ra
 from app.api.deps import get_current_user
 from app.models.user import User
 
-async def my_controller(current_user: User = Depends(get_current_user)) -> SuccessResponse[...]:
-    ...
+
+async def my_controller(current_user: User = Depends(get_current_user)) -> SuccessResponse[...]: ...
 ```
 
 `get_current_user` (`app/api/deps.py`) validates the `Authorization: Bearer <token>` header, decodes it (`app/core/security.py`, PyJWT + `HS256`), and loads the `User`. Missing/expired/invalid token → `401 unauthorized` through the standard error contract automatically. Reference: `app/controllers/auth_controller.py::me`.
@@ -25,7 +25,9 @@ Never hand-roll token parsing in a controller — always go through this depende
 from app.core.rate_limit import rate_limit
 
 router.add_api_route(
-    "/login", auth_controller.login, methods=["POST"],
+    "/login",
+    auth_controller.login,
+    methods=["POST"],
     dependencies=[Depends(rate_limit("login", "rate_limit_login", "rate_limit_login_window_seconds"))],
 )
 ```

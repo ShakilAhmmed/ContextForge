@@ -26,6 +26,10 @@ def unauthorized(message: str) -> ApiError:
     return ApiError(status.HTTP_401_UNAUTHORIZED, "unauthorized", message)
 
 
+def forbidden(message: str) -> ApiError:
+    return ApiError(status.HTTP_403_FORBIDDEN, "forbidden", message)
+
+
 def rate_limited(message: str, retry_after_seconds: int) -> ApiError:
     return ApiError(
         status.HTTP_429_TOO_MANY_REQUESTS,

@@ -21,11 +21,15 @@ async def test_login_rate_limit_returns_429_after_threshold(client):
 
 
 async def test_default_rate_limit_returns_429_after_threshold(client):
+    # POST /tenants stays unauthenticated (bootstrap endpoint), so it's a
+    # convenient route to exercise the router-level default limiter with.
+    # The limiter dependency runs regardless of whether the create itself
+    # succeeds, so a 409 on repeat slugs doesn't affect the count.
     with patch.object(config.settings, "rate_limit_default", 3):
         for _ in range(3):
-            resp = await client.get("/api/v1/tenants")
-            assert resp.status_code == 200
+            resp = await client.post("/api/v1/tenants", json={"name": "Acme", "slug": "acme"})
+            assert resp.status_code in (201, 409)
 
-        resp = await client.get("/api/v1/tenants")
+        resp = await client.post("/api/v1/tenants", json={"name": "Acme", "slug": "acme"})
 
         assert resp.status_code == 429
