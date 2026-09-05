@@ -24,12 +24,13 @@ Never hand-roll token parsing in a controller — always go through this depende
 ```python
 from app.core.rate_limit import rate_limit
 
-router.add_api_route(
+
+@router.post(
     "/login",
-    auth_controller.login,
-    methods=["POST"],
+    response_model=SuccessResponse[TokenData],
     dependencies=[Depends(rate_limit("login", "rate_limit_login", "rate_limit_login_window_seconds"))],
 )
+async def login(...): ...
 ```
 
 `rate_limit(key_prefix, limit_attr, window_attr)` takes **attribute names** (strings into `app/core/config.py:Settings`), not resolved numbers — it reads `settings` live at request time, so limits are tunable without a redeploy and patchable in tests. It's a Redis fixed-window counter, keyed by `ratelimit:<key_prefix>:<client_ip>`. Exceeding the limit raises `429` with a `Retry-After` header via `app/core/errors.py:rate_limited()`.

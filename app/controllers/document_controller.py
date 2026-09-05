@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, UploadFile
+from fastapi import APIRouter, Depends, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +16,10 @@ from app.schemas.common import PaginatedResponse, SuccessResponse
 from app.schemas.document import DocumentRead
 from app.services import document_service
 
+router = APIRouter(prefix="/documents", tags=["documents"])
 
+
+@router.post("", response_model=SuccessResponse[DocumentRead], status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile,
     current_user: User = Depends(get_current_user),
@@ -36,6 +39,7 @@ async def upload_document(
     return SuccessResponse(code=201, message="document uploaded and queued for ingestion", data=document)
 
 
+@router.get("", response_model=PaginatedResponse[DocumentRead])
 async def list_documents(
     params: PageParams = Depends(page_params),
     current_user: User = Depends(get_current_user),
@@ -49,6 +53,7 @@ async def list_documents(
     return PaginatedResponse(data=list(result.scalars().all()), meta=build_meta(params, total_items or 0))
 
 
+@router.get("/{document_id}", response_model=SuccessResponse[DocumentRead])
 async def get_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

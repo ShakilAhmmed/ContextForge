@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from app.api.routes.auth import router as auth_router
-from app.api.routes.documents import router as documents_router
-from app.api.routes.tenants import router as tenants_router
+from app.controllers.auth_controller import router as auth_router
+from app.controllers.document_controller import router as documents_router
+from app.controllers.tenant_controller import router as tenants_router
 from app.core.rate_limit import rate_limit
 
 router = APIRouter(

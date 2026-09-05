@@ -21,7 +21,7 @@ Applies to all Python code in this repo. Enforced by `ruff` (lint + format) wher
 ## Naming
 
 - `snake_case` for functions, variables, modules. `PascalCase` for classes (models, Pydantic schemas). `UPPER_SNAKE_CASE` for module-level constants.
-- Files: singular resource name (`tenant.py`, not `tenants.py`) for models/schemas; the *router* file is the one exception and is plural to match its URL prefix (`app/api/routes/tenants.py` → `/tenants`).
+- Files: singular resource name (`tenant.py`, not `tenants.py`) for models/schemas/controllers (`app/controllers/tenant_controller.py`, whose `router` serves the plural `/tenants` URL prefix — the file name matches the resource, not the URL).
 - Test files: `tests/test_<module>.py`. Test functions: `test_<action>_<condition>_<expected_outcome>` (e.g. `test_create_tenant_duplicate_slug_returns_409`) — the name alone should tell you what broke without reading the body.
 - Boolean names read as a yes/no question: `is_active`, `has_quota`, not `active_flag`.
 

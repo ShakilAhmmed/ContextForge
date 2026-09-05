@@ -15,13 +15,15 @@ See [docs/arch.md](docs/arch.md) for the target-state architecture and [docs/mvp
 
 ```
 app/
-├── api/routes/        FastAPI routers — path + method wiring only
-├── controllers/        request handlers: validation, DB calls, HTTP errors
+├── api/v1.py            aggregates each controller's router under /api/v1
+├── api/deps.py          shared dependencies (e.g. get_current_user)
+├── controllers/         each owns its APIRouter + request handlers (validation, DB calls, HTTP errors)
+├── services/            business logic touching multiple systems (storage, queue), called from controllers
 ├── models/              SQLAlchemy ORM models
 ├── schemas/             Pydantic request/response models
 ├── core/config.py       settings (env-driven)
 ├── db.py                engine, session, Base
-└── main.py               app instance, router registration
+└── main.py              app instance, router registration
 
 alembic/                 migrations
 ops/                      Docker + Kubernetes + nginx configs
