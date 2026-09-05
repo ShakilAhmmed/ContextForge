@@ -8,6 +8,8 @@ from app.core.config import settings
 class ObjectStorage(Protocol):
     async def put_object(self, key: str, content: bytes, content_type: str) -> None: ...
 
+    async def get_object(self, key: str) -> bytes: ...
+
     async def ensure_bucket(self) -> None: ...
 
 
@@ -32,6 +34,12 @@ class S3ObjectStorage:
             await client.put_object(
                 Bucket=settings.s3_bucket, Key=key, Body=content, ContentType=content_type
             )
+
+    async def get_object(self, key: str) -> bytes:
+        async with self._client() as client:
+            response = await client.get_object(Bucket=settings.s3_bucket, Key=key)
+            async with response["Body"] as stream:
+                return await stream.read()
 
     async def ensure_bucket(self) -> None:
         async with self._client() as client:

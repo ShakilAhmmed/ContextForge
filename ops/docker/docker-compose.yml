@@ -47,6 +47,16 @@ services:
       timeout: 5s
       retries: 10
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrantdata:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/6333"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ../..
@@ -59,6 +69,7 @@ services:
       S3_ENDPOINT_URL: http://minio:9000
       SQS_ENDPOINT_URL: http://elasticmq:9324
       SQS_INGESTION_QUEUE_URL: http://elasticmq:9324/000000000000/document-ingestion
+      QDRANT_URL: http://qdrant:6333
     expose:
       - "8000"
     depends_on:
@@ -69,6 +80,33 @@ services:
       minio:
         condition: service_healthy
       elasticmq:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    entrypoint: []
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://contextforge:contextforge@postgres:5432/contextforge
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      SQS_ENDPOINT_URL: http://elasticmq:9324
+      SQS_INGESTION_QUEUE_URL: http://elasticmq:9324/000000000000/document-ingestion
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      elasticmq:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
 
   nginx:
@@ -85,3 +123,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  qdrantdata:

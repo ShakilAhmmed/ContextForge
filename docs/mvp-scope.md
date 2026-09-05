@@ -13,9 +13,9 @@ Prove core loop: tenant uploads docs → ingested → user chats/searches → gr
 | Clients | Web App (chat, search, basic admin), Document Upload |
 | Edge/Identity | CloudFront+WAF, API Gateway, Cognito, Tenant Authorizer |
 | App Services | Chat & Search Service, Ingestion Service, minimal Tenant Admin Service |
-| Async Ingestion | S3 Document Lake, SQS, Ingestion Workers (parse→chunk→embed→index), DLQ |
-| AI | Titan Embeddings, LLM(s) via Bedrock (Claude + Nova fallback), Bedrock Guardrails |
-| Data | PostgreSQL (tenants/users/docs/ACL/jobs), one vector store (pick Qdrant OR OpenSearch, not both), Redis (session+rate-limit+cache) |
+| Async Ingestion | S3 Document Lake (MinIO in dev), SQS (ElasticMQ in dev), Ingestion Workers (parse→**PII mask**→chunk→embed→index), DLQ |
+| AI | Embeddings via a swappable provider (mock/`FakeEmbeddings` implemented now; Bedrock Titan deferred, see `app/core/embeddings.py`), LLM(s) via Bedrock (Claude + Nova fallback) — not yet built, PII masking via Presidio/spaCy at ingestion time (implemented) |
+| Data | PostgreSQL (tenants/users/docs/ACL/jobs), **Qdrant** (vector store — decided, resolves the open risk below), Redis (session+rate-limit+cache) |
 | RAG Pipeline | Input Guardrails, Query Router (RAG-only, no tool/direct branch), Query Rewriter, Retrieval (vector+ACL filter), Reranker (Cohere/custom), Context Builder, Model Router (quality/cost/latency), Output Guardrails, Citation Validator |
 | Observability | Langfuse (traces/evals), CloudWatch, Prometheus + Grafana, Loki |
 | Reliability | Timeouts, Retry+Backoff, Idempotency (ingestion), Circuit Breaker, Bulkheads, Rate Limiting, Model Fallback |
@@ -28,10 +28,11 @@ Prove core loop: tenant uploads docs → ingested → user chats/searches → gr
 
 ## Open Risks
 
-- Single vector store choice (Qdrant vs OpenSearch) blocks ingestion worker + retrieval work — decide before sprint start
 - Reranker + Model Router + full reliability suite (circuit breaker/bulkheads) add real build time — biggest scope risk to MVP timeline, watch closely
 - No connector sync means demo/pilot tenants must hand-upload docs
 - Quota enforcement at MVP adds an extra guard path in Chat/Ingest — verify it doesn't block legit early pilot usage (soft-limit + alert before hard block)
+- PII masking uses spaCy's small English model (`en_core_web_sm`, chosen to keep the worker image size down) — lower recall on names/addresses than Presidio's default `en_core_web_lg`; revisit if manual review finds it's letting real PII through
+- Real Bedrock embeddings are deferred (`app/core/embeddings.py` raises `NotImplementedError`) — `langchain-aws` pins a newer `botocore` than `aioboto3` tolerates; resolve that version conflict before wiring up real embeddings
 
 ## MVP Architecture (subset of docs/arch.md)
 
@@ -65,27 +66,28 @@ APIGW --> INGEST
 AUTHZ --> ADMINSVC
 
 subgraph ASYNC["Async Ingestion"]
-    S3RAW["S3 Document Lake"]
-    QUEUE["SQS"]
-    WORKERS["Ingestion Workers<br/>parse→chunk→embed→index"]
+    S3RAW["S3 Document Lake<br/>(MinIO in dev)"]
+    QUEUE["SQS<br/>(ElasticMQ in dev)"]
+    WORKERS["Ingestion Workers"]
+    PIIMASK["PII Masking<br/>Presidio + spaCy"]
     DLQ["Dead Letter Queue"]
 end
 
-INGEST --> S3RAW --> QUEUE --> WORKERS
+INGEST --> S3RAW --> QUEUE --> WORKERS --> PIIMASK
 QUEUE -. failed .-> DLQ
 
 subgraph AI["Amazon Bedrock"]
-    EMBED["Titan Embeddings"]
+    EMBED["Titan Embeddings<br/>(mock provider in MVP)"]
     LLM1["Claude"]
     LLM2["Nova / Fallback Model"]
     GUARD["Bedrock Guardrails"]
 end
 
-WORKERS --> EMBED
+PIIMASK --> EMBED
 
 subgraph DATA["Tenant-Isolated Data"]
     PG["PostgreSQL"]
-    VECTOR["Vector Store<br/>(Qdrant or OpenSearch)"]
+    VECTOR["Qdrant<br/>(vector store)"]
     REDIS["Redis<br/>cache, rate-limit, sessions"]
 end
 

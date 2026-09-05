@@ -9,6 +9,8 @@ See [docs/arch.md](docs/arch.md) for the target-state architecture and [docs/mvp
 - **API**: FastAPI (async), Python 3.12
 - **DB**: PostgreSQL, SQLAlchemy 2.0 (async ORM), Alembic migrations
 - **Serving**: nginx (TLS termination, reverse proxy) in front of uvicorn
+- **Storage/queue/vectors**: MinIO (S3-compatible), ElasticMQ (SQS-compatible), Qdrant
+- **Ingestion**: separate `app/worker.py` process — chunk, PII-mask (Presidio/spaCy), embed, index
 - **Ops**: Docker Compose (local dev) and Kubernetes manifests — see [ops/README.md](ops/README.md)
 
 ## Project layout
@@ -18,11 +20,12 @@ app/
 ├── api/v1.py            aggregates each controller's router under /api/v1
 ├── api/deps.py          shared dependencies (e.g. get_current_user)
 ├── controllers/         each owns its APIRouter + request handlers (validation, DB calls, HTTP errors)
-├── services/            business logic touching multiple systems (storage, queue), called from controllers
+├── services/            business logic touching multiple systems (storage, queue, ingestion), called from controllers/worker
 ├── models/              SQLAlchemy ORM models
 ├── schemas/             Pydantic request/response models
-├── core/config.py       settings (env-driven)
+├── core/                config, storage/queue/embeddings/vectorstore/pii clients, rate limiting, errors
 ├── db.py                engine, session, Base
+├── worker.py            ingestion queue consumer - separate process (python -m app.worker)
 └── main.py              app instance, router registration
 
 alembic/                 migrations

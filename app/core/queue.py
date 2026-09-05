@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from typing import Protocol
 
 import aioboto3
@@ -6,8 +7,18 @@ import aioboto3
 from app.core.config import settings
 
 
+@dataclass
+class QueueMessage:
+    body: dict
+    receipt_handle: str
+
+
 class QueueClient(Protocol):
     async def send_message(self, body: dict) -> None: ...
+
+    async def receive_messages(self, max_messages: int, wait_seconds: int) -> list[QueueMessage]: ...
+
+    async def delete_message(self, receipt_handle: str) -> None: ...
 
 
 class SQSQueueClient:
@@ -29,6 +40,24 @@ class SQSQueueClient:
     async def send_message(self, body: dict) -> None:
         async with self._client() as client:
             await client.send_message(QueueUrl=settings.sqs_ingestion_queue_url, MessageBody=json.dumps(body))
+
+    async def receive_messages(self, max_messages: int, wait_seconds: int) -> list[QueueMessage]:
+        async with self._client() as client:
+            response = await client.receive_message(
+                QueueUrl=settings.sqs_ingestion_queue_url,
+                MaxNumberOfMessages=max_messages,
+                WaitTimeSeconds=wait_seconds,
+            )
+        return [
+            QueueMessage(body=json.loads(m["Body"]), receipt_handle=m["ReceiptHandle"])
+            for m in response.get("Messages", [])
+        ]
+
+    async def delete_message(self, receipt_handle: str) -> None:
+        async with self._client() as client:
+            await client.delete_message(
+                QueueUrl=settings.sqs_ingestion_queue_url, ReceiptHandle=receipt_handle
+            )
 
 
 _queue = SQSQueueClient()

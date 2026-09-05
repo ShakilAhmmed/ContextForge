@@ -26,6 +26,19 @@ class Settings(BaseSettings):
     sqs_region: str = "us-east-1"
     sqs_ingestion_queue_url: str = "http://elasticmq:9324/000000000000/document-ingestion"
 
+    # "mock" (langchain_community.embeddings.FakeEmbeddings, no AWS needed) or
+    # "bedrock" (langchain_aws.BedrockEmbeddings - requires that package added
+    # and real AWS credentials; not wired up yet, see app/core/embeddings.py).
+    embedding_provider: str = "mock"
+    embedding_dimensions: int = 384
+    bedrock_embedding_model: str = "amazon.titan-embed-text-v2:0"
+
+    qdrant_url: str = "http://qdrant:6333"
+    qdrant_collection: str = "documents"
+
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+
     rate_limit_default: int = 100
     rate_limit_default_window_seconds: int = 60
     rate_limit_login: int = 5

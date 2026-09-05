@@ -16,3 +16,6 @@ data:
   SQS_ENDPOINT_URL: "http://elasticmq:9324"
   SQS_REGION: "us-east-1"
   SQS_INGESTION_QUEUE_URL: "http://elasticmq:9324/000000000000/document-ingestion"
+  EMBEDDING_PROVIDER: "mock"
+  QDRANT_URL: "http://qdrant:6333"
+  QDRANT_COLLECTION: "documents"

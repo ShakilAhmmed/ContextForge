@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repo. See also [README.md](README.
 
 ## Stack
 
-FastAPI (async) + PostgreSQL (async SQLAlchemy 2.0 ORM) + Alembic migrations + Redis (rate limiting) + MinIO (S3-compatible document storage) + ElasticMQ (SQS-compatible ingestion queue). nginx reverse-proxies with TLS in front of uvicorn. Python 3.12.
+FastAPI (async) + PostgreSQL (async SQLAlchemy 2.0 ORM) + Alembic migrations + Redis (rate limiting) + MinIO (S3-compatible document storage) + ElasticMQ (SQS-compatible ingestion queue) + Qdrant (vector store) + Presidio/spaCy (PII masking). nginx reverse-proxies with TLS in front of uvicorn. A separate `app/worker.py` process consumes the ingestion queue. Python 3.12.
 
 ## Architecture pattern — controller owns its router
 
@@ -42,6 +42,14 @@ JWT bearer tokens (`app/core/security.py`, `PyJWT` + `bcrypt`). `app/api/deps.py
 
 `app/core/storage.py` (`ObjectStorage` protocol, `S3ObjectStorage` impl) and `app/core/queue.py` (`QueueClient` protocol, `SQSQueueClient` impl) both follow the same shape: a `Protocol` interface + one real implementation using `aioboto3`, targeting MinIO/ElasticMQ in dev and real AWS S3/SQS in prod via `app/core/config.py` settings (endpoint URL + credentials only differ). Get them via `Depends(get_storage)` / `Depends(get_queue)`, never instantiate directly. `app/main.py`'s `lifespan` calls `storage.ensure_bucket()` on startup.
 
+## Ingestion pipeline & PII masking
+
+`app/worker.py` (run via `python -m app.worker`, its own container/process, never imported by the API) polls the ingestion queue and calls `app/services/ingestion_service.py:ingest_document()` per message: fetch from storage → **mask PII** → chunk → embed → index into Qdrant → mark the `Document` row `indexed` (or `failed`, leaving the message for SQS/ElasticMQ's redrive-to-DLQ retry).
+
+PII masking (`app/core/pii.py:mask_pii()`, Microsoft Presidio + spaCy `en_core_web_sm`) runs on the **full document text before chunking**, not per-chunk and not on the original file in storage — the source file in MinIO/S3 is untouched (access to it is already tenant+auth gated), but nothing with raw PII (names, emails, phone numbers, etc.) ever reaches the searchable vector index. This is a GDPR data-minimization control, not optional — don't skip it when changing the ingestion path. It's CPU-bound (spaCy NER), so it's called via `asyncio.to_thread` to avoid blocking the worker's event loop.
+
+Embeddings (`app/core/embeddings.py:get_embeddings()`) and the vector store (`app/core/vectorstore.py:get_vector_store()`) both use LangChain abstractions (`Embeddings`, `QdrantVectorStore`) so the provider is swappable via `settings.embedding_provider` ("mock" today via `FakeEmbeddings`, "bedrock" is stubbed but not wired up — see the `NotImplementedError` there for why, a dependency version conflict with `aioboto3`).
+
 ## API versioning
 
 Everything lives under `/api/v1` — routers are aggregated in `app/api/v1.py` and mounted once in `app/main.py`. New resource routers get included there, not directly in `main.py`.
@@ -64,6 +72,8 @@ pytest -q
 ```
 
 `tests/conftest.py` provides a `client` fixture: in-memory SQLite (no Docker needed) with `get_db` overridden, `fakeredis` with `get_redis` overridden, and `tests/fakes.py`'s `FakeObjectStorage`/`FakeQueueClient` with `get_storage`/`get_queue` overridden (exposed as `client.fake_storage`/`client.fake_queue` for assertions). Tests hit the real FastAPI app via `httpx.AsyncClient` + `ASGITransport` — no mocking of controllers. Assert on the full response contract shape (`success`/`code`/`data`/`error.type`), not just status code. This is the pattern used throughout `tests/test_tenants.py`, `tests/test_auth.py`, `tests/test_rate_limit.py`, `tests/test_documents.py` — follow it for new tests.
+
+Worker/ingestion tests (`tests/test_ingestion_service.py`, `tests/test_worker.py`) don't use the `client` fixture — `ingest_document()`/`app.worker._handle()` take their collaborators as plain arguments (not FastAPI `Depends`), so tests build their own SQLite session and pass in `tests/fakes.py`'s `FakeObjectStorage`/`FakeVectorStore` directly (`app.worker`'s module-level `SessionLocal`/`get_storage`/`get_vector_store` are swapped via `monkeypatch.setattr` for worker-loop tests). PII masking (`mask_pii`) runs for real in these tests, not faked — it's fast enough (~0.1s/call with the small spaCy model) not to need a fake.
 
 CI runs this in `.github/workflows/test.yml`, separate from `lint.yml` (`ruff check` + `ruff format --check`) and `docker-build.yml` (builds the root `Dockerfile`) — three independent workflow files so any one can fail without blocking the others. Run `ruff format . && ruff check . --fix` locally before committing.
 
