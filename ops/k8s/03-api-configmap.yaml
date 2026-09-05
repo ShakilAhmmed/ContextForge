@@ -9,3 +9,4 @@ metadata:
 data:
   ENV: "production"
   DATABASE_URL: "postgresql+asyncpg://contextforge:contextforge@postgres:5432/contextforge"
+  REDIS_URL: "redis://redis:6379/0"

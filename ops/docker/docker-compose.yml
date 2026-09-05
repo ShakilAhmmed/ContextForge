@@ -15,6 +15,14 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ../..
@@ -23,10 +31,13 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://contextforge:contextforge@postgres:5432/contextforge
+      REDIS_URL: redis://redis:6379/0
     expose:
       - "8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   nginx:

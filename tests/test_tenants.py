@@ -1,5 +1,5 @@
 async def test_create_tenant_returns_success_contract(client):
-    resp = await client.post("/tenants", json={"name": "Acme", "slug": "acme"})
+    resp = await client.post("/api/v1/tenants", json={"name": "Acme", "slug": "acme"})
 
     assert resp.status_code == 201
     body = resp.json()
@@ -13,9 +13,9 @@ async def test_create_tenant_returns_success_contract(client):
 
 
 async def test_create_tenant_duplicate_slug_returns_409(client):
-    await client.post("/tenants", json={"name": "Acme", "slug": "acme"})
+    await client.post("/api/v1/tenants", json={"name": "Acme", "slug": "acme"})
 
-    resp = await client.post("/tenants", json={"name": "Acme 2", "slug": "acme"})
+    resp = await client.post("/api/v1/tenants", json={"name": "Acme 2", "slug": "acme"})
 
     assert resp.status_code == 409
     body = resp.json()
@@ -25,7 +25,7 @@ async def test_create_tenant_duplicate_slug_returns_409(client):
 
 
 async def test_create_tenant_invalid_slug_returns_422(client):
-    resp = await client.post("/tenants", json={"name": "Bad", "slug": "Not Valid!"})
+    resp = await client.post("/api/v1/tenants", json={"name": "Bad", "slug": "Not Valid!"})
 
     assert resp.status_code == 422
     body = resp.json()
@@ -36,7 +36,7 @@ async def test_create_tenant_invalid_slug_returns_422(client):
 
 
 async def test_get_tenant_not_found_returns_404(client):
-    resp = await client.get("/tenants/00000000-0000-0000-0000-000000000000")
+    resp = await client.get("/api/v1/tenants/00000000-0000-0000-0000-000000000000")
 
     assert resp.status_code == 404
     body = resp.json()
@@ -46,9 +46,9 @@ async def test_get_tenant_not_found_returns_404(client):
 
 
 async def test_get_tenant_returns_created_tenant(client):
-    created = (await client.post("/tenants", json={"name": "Acme", "slug": "acme"})).json()["data"]
+    created = (await client.post("/api/v1/tenants", json={"name": "Acme", "slug": "acme"})).json()["data"]
 
-    resp = await client.get(f"/tenants/{created['id']}")
+    resp = await client.get(f"/api/v1/tenants/{created['id']}")
 
     assert resp.status_code == 200
     body = resp.json()
@@ -58,9 +58,9 @@ async def test_get_tenant_returns_created_tenant(client):
 
 async def test_list_tenants_paginates(client):
     for slug in ("acme", "globex", "initech"):
-        await client.post("/tenants", json={"name": slug, "slug": slug})
+        await client.post("/api/v1/tenants", json={"name": slug, "slug": slug})
 
-    resp = await client.get("/tenants", params={"page": 2, "page_size": 1})
+    resp = await client.get("/api/v1/tenants", params={"page": 2, "page_size": 1})
 
     assert resp.status_code == 200
     body = resp.json()
@@ -70,7 +70,7 @@ async def test_list_tenants_paginates(client):
 
 
 async def test_list_tenants_empty_returns_empty_page(client):
-    resp = await client.get("/tenants")
+    resp = await client.get("/api/v1/tenants")
 
     assert resp.status_code == 200
     body = resp.json()

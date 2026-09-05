@@ -29,7 +29,9 @@ Manifests in `ops/k8s`, applied in order (numeric prefix):
 kubectl apply -f ops/k8s/00-namespace.yaml
 kubectl apply -f ops/k8s/01-postgres-secret.yaml
 kubectl apply -f ops/k8s/02-postgres.yaml
+kubectl apply -f ops/k8s/02b-redis.yaml
 kubectl apply -f ops/k8s/03-api-configmap.yaml
+kubectl apply -f ops/k8s/03b-api-secret.yaml
 kubectl apply -f ops/k8s/07-migrate-job.yaml
 kubectl wait --for=condition=complete job/migrate -n contextforge
 kubectl apply -f ops/k8s/04-api.yaml
@@ -37,6 +39,6 @@ kubectl apply -f ops/k8s/05-nginx-configmap.yaml
 kubectl apply -f ops/k8s/06-nginx.yaml
 ```
 
-- `01-postgres-secret.yaml` and `03-api-configmap.yaml` ship demo credentials — replace with a real secrets manager before any shared/staging cluster.
+- `01-postgres-secret.yaml`, `03-api-configmap.yaml`, and `03b-api-secret.yaml` ship demo credentials/JWT secret — replace with a real secrets manager before any shared/staging cluster.
 - `contextforge-api:latest` must point at an image built from the root `Dockerfile` and pushed to a registry your cluster can pull from.
 - `06-nginx.yaml` Service is `LoadBalancer` — swap for `ClusterIP` + Ingress if the cluster doesn't support LB provisioning.
