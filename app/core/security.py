@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -25,3 +26,7 @@ def create_access_token(user_id: uuid.UUID, tenant_id: uuid.UUID) -> tuple[str, 
 
 def decode_access_token(token: str) -> dict:
     return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+
+
+def generate_csrf_token() -> str:
+    return secrets.token_urlsafe(32)

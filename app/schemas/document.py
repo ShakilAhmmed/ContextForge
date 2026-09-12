@@ -14,3 +14,9 @@ class DocumentRead(BaseModel):
     size_bytes: int
     status: str
     created_at: datetime
+
+
+class ChunkPoint(BaseModel):
+    text: str
+    x: float
+    y: float

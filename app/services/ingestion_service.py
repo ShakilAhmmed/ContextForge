@@ -10,12 +10,10 @@ from app.core.config import settings
 from app.core.pii import mask_pii
 from app.core.storage import ObjectStorage
 from app.models.document import STATUS_FAILED, STATUS_INDEXED, STATUS_PROCESSING, Document
+from app.services.text_extraction import extract_text
 
 logger = logging.getLogger(__name__)
 
-# PDF/other binary formats are decoded as best-effort UTF-8 for now - proper
-# text extraction (e.g. pypdf) is future work once a real document corpus is
-# in scope; this only produces sane text for text/plain and text/markdown today.
 _splitter = RecursiveCharacterTextSplitter(
     chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap
 )
@@ -40,9 +38,9 @@ async def ingest_document(
 
     try:
         content = await storage.get_object(storage_key)
-        text = content.decode("utf-8", errors="ignore")
-        # CPU-bound (spaCy NER) - off the event loop so it doesn't stall other
-        # in-flight work in the worker process.
+        # Both are CPU-bound (PDF parsing, spaCy NER) - off the event loop so
+        # they don't stall other in-flight work in the worker process.
+        text = await asyncio.to_thread(extract_text, content, document.content_type)
         masked_text = await asyncio.to_thread(mask_pii, text)
         chunks = _splitter.split_text(masked_text)
 

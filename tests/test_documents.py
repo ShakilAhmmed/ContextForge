@@ -142,3 +142,74 @@ async def test_list_documents_only_returns_own_tenants_documents(client):
     body = resp.json()
     assert body["meta"]["total_items"] == 2
     assert {d["filename"] for d in body["data"]} == {"a.txt", "b.txt"}
+
+
+async def test_list_documents_filters_by_search(client):
+    tenant_id = await _create_tenant(client)
+    headers = await _auth_headers(client, tenant_id)
+    await client.post(
+        "/api/v1/documents", headers=headers, files={"file": ("invoice.txt", b"a", "text/plain")}
+    )
+    await client.post(
+        "/api/v1/documents", headers=headers, files={"file": ("report.txt", b"b", "text/plain")}
+    )
+
+    resp = await client.get("/api/v1/documents", headers=headers, params={"search": "INVOICE"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["total_items"] == 1
+    assert body["data"][0]["filename"] == "invoice.txt"
+
+
+async def test_list_document_chunks_returns_indexed_chunks(client):
+    tenant_id = await _create_tenant(client)
+    headers = await _auth_headers(client, tenant_id)
+    upload = await client.post(
+        "/api/v1/documents", headers=headers, files={"file": ("notes.txt", b"hello", "text/plain")}
+    )
+    document_id = upload.json()["data"]["id"]
+    # Simulate the worker having already indexed this document's chunks.
+    client.fake_vector_store.added.extend(
+        [
+            ("first chunk text", {"document_id": document_id, "tenant_id": tenant_id}),
+            ("second chunk text", {"document_id": document_id, "tenant_id": tenant_id}),
+            ("someone else's chunk", {"document_id": "other-doc-id", "tenant_id": tenant_id}),
+        ]
+    )
+
+    resp = await client.get(f"/api/v1/documents/{document_id}/chunks", headers=headers)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    texts = {point["text"] for point in body["data"]}
+    assert texts == {"first chunk text", "second chunk text"}
+    for point in body["data"]:
+        assert isinstance(point["x"], float)
+        assert isinstance(point["y"], float)
+
+
+async def test_list_document_chunks_not_found_returns_404(client):
+    tenant_id = await _create_tenant(client)
+    headers = await _auth_headers(client, tenant_id)
+
+    resp = await client.get("/api/v1/documents/00000000-0000-0000-0000-000000000000/chunks", headers=headers)
+
+    assert resp.status_code == 404
+
+
+async def test_list_document_chunks_other_tenant_returns_404(client):
+    tenant_a = await _create_tenant(client)
+    headers_a = await _auth_headers(client, tenant_a, email="alice@example.com")
+    upload = await client.post(
+        "/api/v1/documents", headers=headers_a, files={"file": ("notes.txt", b"hello", "text/plain")}
+    )
+    document_id = upload.json()["data"]["id"]
+
+    tenant_b_resp = await client.post("/api/v1/tenants", json={"name": "Globex", "slug": "globex"})
+    tenant_b = tenant_b_resp.json()["data"]["id"]
+    headers_b = await _auth_headers(client, tenant_b, email="bob@example.com")
+
+    resp = await client.get(f"/api/v1/documents/{document_id}/chunks", headers=headers_b)
+
+    assert resp.status_code == 404
